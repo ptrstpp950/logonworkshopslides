@@ -1,0 +1,279 @@
+doctype html
+html
+  head
+    meta(charset='utf-8')
+    meta(name='viewport', content='width=device-width, initial-scale=1, maximum-scale=1')
+    title Logon Workshop
+
+    link(rel='stylesheet', type='text/css', href='build/build.css')
+
+  body
+
+    article
+
+      section
+        h1 Logon Workshop
+
+      section(data-bespoke-hash='setup')
+        h2 Setup
+        h3 Run our legacy project
+
+        h4.bullet
+          li.bullet Download git repository
+            pre
+              code.language-javascript.
+                git clone 
+                https://ptrstpp950@bitbucket.org/ptrstpp950/logonworkshop.git
+          li Run Visual Studio
+          li Compile&run with CTRL+F5 and listen to the story
+          li Example login is test and password is 123
+      
+      section(data-bespoke-hash='about-me')
+        h2 Who am I?
+        h3.bullet
+          li User of every useful technology
+          li DevOps and automation adept 
+          li Working in <img src="images/mbank-logo.png" width="107" height="40" alt="mBank"/> as IT Expert
+
+      section(data-bespoke-hash='the-story')
+        h2 The story
+        p Long long time ago, far far away in our company somebody created a login page :)
+        p It has small feature: when user 3 times in a row enters bad credentials, the login is blocked for 1 minute
+        p The users frequently create service calls about blocked account
+        p <b>The boss</b> said: <i>Do something with it!!</i>
+        p And now your are here looking into the code
+
+
+      section(data-bespoke-hash='create-unit-test-proj')
+        h2 Let's create a Unit test project
+
+        ul.bullet
+          li Right click on solution -> Add -> New project
+          li Visual C# -> Test
+          li Name it as you wish
+
+      section(data-bespoke-hash='references')
+        h2 References
+        ul.bullet
+          li Add reference to LogonWorkshop project
+          li Add reference to System.Web
+          li Install System.Web.Mvc package from solution
+
+
+      section(data-bespoke-hash='first-test-method')
+        h2 Our first test method
+        h5
+          pre
+            code.language-javascript.
+              [TestMethod]
+              public void TestMethodSuccessLogin()
+              {
+                  var password = "123";
+                  var user = "test";
+                  var controller = new HomeController();
+                  controller.Index(new LoginModel() {User = user, Password = password});
+              }
+  
+      section(data-bespoke-hash='connection-string-problem')
+        h2 Connection string problem
+        p We need to add it in the constructor of HomeController
+        h5
+          pre
+            code.language-javascript.
+              private string connectionString;
+              public HomeController() : this
+                  (ConfigurationManager.ConnectionStrings["ProjectDB"].ConnectionString)
+              {
+
+              }
+              public HomeController(string connectionString)
+              {
+                  this.connectionString = connectionString;
+              }
+
+      section(data-bespoke-hash='fix-unit-test')
+        h2 Fix unit test
+        h3.bullet Options
+        ul
+          li Pass something in constructor
+          li Use database in unit test - <span style="color:red">NO!!</span> until there is no other option
+          li Mock/stub database - this needs some refactoring
+
+      section(data-bespoke-hash='extract-sql-methods')
+        h2 Extract SQL methods
+        h3.bullet
+        ul
+          li Select code and press CTRL+R,M (or in context menu select Refactor->Extract method)
+          li Change them from <code>private static</code> to <code>public</code>
+          li Move them to new class like <code>SQLrepository</code>
+          li Fix errors
+          li <span style="color:green"> If you are lost just checkout step1 branch from git with:</span>
+            pre
+              code.language-javascript.
+                git checkout step1
+      section(data-bespoke-hash='eliminate-SQLConnection')
+        h2 Eliminate SQLConnection from HomeController
+        h3.bullet <span style="color:red">This is dangerous part</span>
+        ul
+          li Make <code>SqlRepository</code> as <code>IDisposable</code>
+          li Move <code>SqlConnection</code> into <code>SqlRepository</code>
+          li Remove <code>SqlConnection conn</code> form extracted methods in <code>SqlRepository</code>
+          li Fill <code>Dispose</code> method
+          li Implement <code>Open</code> method
+          li Replace <code>SqlConnection</code> with <code>SqlRepository</code>
+
+      section(data-bespoke-hash='SqlRepository')
+        h2 SqlRepository code
+        pre
+          code.language-javascript.
+            public SqlConnection conn;
+            public SqlRepository(string connectionString)
+            {
+                conn = new SqlConnection(connectionString);
+            }
+            public void Dispose()
+            {
+                if (conn != null)
+                    conn.Dispose();
+            }
+            public void Open()
+            {
+                conn.Open();
+            }
+
+      section(data-bespoke-hash='interface-is-better')
+        h2 Interface is easier to stub/mock
+        p To convert <code>SqlRepository</code> just use Visual&nbsp;Studio right-click menu<br/><u>Refactor->Extract interface</u>
+        p Remember to make this interface inherit from <code>IDisposable</code>
+    
+      section(data-bespoke-hash='if-you-are-lost')
+        h2 If you are lost
+        h4 <span style="color:green"> If you are lost just checkout step2 branch from git with:</span>
+            pre
+              code.language-javascript.
+                git checkout step2
+
+      section(data-bespoke-hash='func')
+        h2 Use Func Luke!
+        p The last step is to eliminate 
+          pre
+            code.language-javascript.
+              using (var sqlRepository = new SqlRepository(connectionString))
+        p Easy conversion is to use Func like:
+          pre
+            code.language-javascript.
+              public Func<ISqlRepository> CreateSqlRepository;
+              public HomeController(string connectionString)
+              {
+                  this.connectionString = connectionString;
+                  CreateSqlRepository = () => new SqlRepository(connectionString);
+              }
+
+      section(data-bespoke-hash='stub')
+        h2 Let's write stub
+        h3 
+
+        pre
+          code.language-javascript.
+            public class SqlRepositoryStub : ISqlRepository
+            {
+                public class UserInDbStub
+                {
+                    public int UserId;
+                    public string Username;
+                    public string Password;
+                    public DateTime LastBadLogin = new DateTime();
+                    public int BadAttempt = 0;
+                }
+                public List<UserInDbStub> Users = new List<UserInDbStub>();
+
+                public int GetUserId(LoginModel model)
+                {
+                    var user = 
+                      Users.FirstOrDefault(x => 
+                        x.Username == model.User);
+                    if (user == null)
+                    {
+                        return -1;
+                    }
+                    return user.UserId;
+                }
+
+                public void TryLogin(LoginModel model, int userId,
+                    out int badAttempt, out DateTime lastBadLogin, 
+                    out bool successLogin)
+                {
+                    var user = 
+                      Users.FirstOrDefault(x => 
+                        x.UserId == userId 
+                        && x.Password == model.Password);
+                    if (user == null)
+                    {
+                        lastBadLogin = DateTime.MinValue;
+                        badAttempt = 0;
+                        successLogin = false;
+                    }
+                    lastBadLogin = user.LastBadLogin;
+                    badAttempt = user.BadAttempt;
+                    successLogin = true;
+                }
+
+                public void UpdateBadAttemps(int userId)
+                {
+                    var user = 
+                    Users.First(x => x.UserId == userId);
+                    user.BadAttempt += 1;
+                    user.LastBadLogin = DateTime.Now;
+                }
+
+                public void Open()
+                {
+                }
+                public void Dispose()
+                {
+                }
+            }
+
+
+
+      section(data-bespoke-hash='full-test-method')
+        h2 Our first test method
+        h3 
+        pre
+          code.language-javascript.
+            var password = "123";
+            var user = "test";
+            var controller = new HomeController("");
+            controller.CreateSqlRepository = () =>
+            {
+                var sqlRepositoryStub = new SqlRepositoryStub();
+
+                sqlRepositoryStub.Users.Add(
+                new SqlRepositoryStub.UserInDbStub()
+                {
+                    BadAttempt = 0,
+                    UserId = 1,
+                    Username = user,
+                    Password = password
+                });
+                return sqlRepositoryStub;
+            };
+            var result = controller
+                .Index(
+                  new LoginModel() {User = user, Password = password}) 
+                as RedirectToRouteResult;
+            Assert.IsNotNull(result);
+            Assert.AreEqual("LoginSuccess", result.RouteValues["action"]);
+
+      section(data-bespoke-hash='your-turn')
+        h2 Now is Your turn
+        h3.bullet The code has two errors - find them wit Unit Test
+        ul
+          li Implement bad login test
+          li Implement lock account test
+          li Implement login after lock with more than 1 minute delay
+          li <b>!!Good luck!!</b>
+
+
+
+    script(src='build/build.js')

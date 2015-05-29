@@ -1,0 +1,7 @@
+{
+  "name": "presentation-logon-workshop",
+  "version": "0.0.0",
+  "dependencies": {
+    "prism": "gh-pages"
+  }
+}
